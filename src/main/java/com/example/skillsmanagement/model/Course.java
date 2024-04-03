@@ -22,13 +22,11 @@ public class Course {
 
     private String requirements;
 
-    private Enum<CourseStatus> courseStatusEnum;
+    private CourseStatus courseStatusEnum;
 
 
     @ManyToOne
     @JoinColumn(name = "skill_id")
     private Skill skill;
-
-
 
 }

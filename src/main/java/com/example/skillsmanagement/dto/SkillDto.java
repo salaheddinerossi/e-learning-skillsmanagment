@@ -12,6 +12,6 @@ public class SkillDto {
 
     private String skillDescription;
 
-    private Enum<SkillLevel> skillLevelEnum;
+    private SkillLevel skillLevel;
 
 }

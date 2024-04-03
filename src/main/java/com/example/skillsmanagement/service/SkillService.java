@@ -8,9 +8,9 @@ import java.util.List;
 
 public interface SkillService {
 
-    void createSkill(SkillDto skillDto);
+    SkillResponse createSkill(SkillDto skillDto);
 
-    void updateSkill(Long id,SkillDto skillDto);
+    SkillResponse updateSkill(Long id,SkillDto skillDto);
 
     void approveSkill(Long courseID);
 
