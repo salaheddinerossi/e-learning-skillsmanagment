@@ -17,6 +17,9 @@ public interface SkillMapper {
     @Mapping(source = "skillLevel",target = "skillLevel")
     SkillResponse skillToSkillResponse(Skill skill);
 
+
+
+    @Mapping(target = "image",ignore = true)
     Skill skillDtoToSkill(SkillDto skillDto);
 
     SkillsNameResponse skillToSkillsNameResponse(Skill skill);
