@@ -23,8 +23,11 @@ public class Skill {
 
     private String skillDescription;
 
-    private Enum<SkillLevel> skillLevelEnum;
+    private SkillLevel skillLevel;
 
     @OneToMany(mappedBy = "skill", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Course> courses = new ArrayList<>();
+
+    @ManyToMany(mappedBy = "skills")
+    private List<Student> students = new ArrayList<>();
 }

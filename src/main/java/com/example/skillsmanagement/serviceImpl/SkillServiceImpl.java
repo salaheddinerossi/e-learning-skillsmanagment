@@ -2,23 +2,31 @@ package com.example.skillsmanagement.serviceImpl;
 
 import com.example.skillsmanagement.Enum.CourseStatus;
 import com.example.skillsmanagement.dto.SkillDto;
-import com.example.skillsmanagement.exception.CourseNotFoundException;
-import com.example.skillsmanagement.exception.SkillNotFoundException;
+import com.example.skillsmanagement.exception.ResourceNotFoundException;
+import com.example.skillsmanagement.mapper.SkillMapper;
 import com.example.skillsmanagement.model.Course;
 import com.example.skillsmanagement.model.Skill;
 import com.example.skillsmanagement.repository.CourseRepository;
 import com.example.skillsmanagement.repository.SkillRepository;
+import com.example.skillsmanagement.repository.StudentRepository;
 import com.example.skillsmanagement.response.SkillResponse;
 import com.example.skillsmanagement.response.SkillsNameResponse;
 import com.example.skillsmanagement.service.SkillService;
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
+import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 
 
 @Service
 public class SkillServiceImpl implements SkillService {
+
+    final
+    StudentRepository studentRepository;
 
     final
     SkillRepository skillRepository;
@@ -26,38 +34,67 @@ public class SkillServiceImpl implements SkillService {
     final
     CourseRepository courseRepository;
 
-    public SkillServiceImpl(CourseRepository courseRepository, SkillRepository skillRepository) {
+    final
+    SkillMapper skillMapper;
+
+    final
+    StorageService storageService;
+
+    public SkillServiceImpl(CourseRepository courseRepository, SkillRepository skillRepository, SkillMapper skillMapper, StudentRepository studentRepository, StorageService storageService) {
         this.courseRepository = courseRepository;
         this.skillRepository = skillRepository;
+        this.skillMapper = skillMapper;
+        this.studentRepository = studentRepository;
+        this.storageService = storageService;
     }
 
     @Override
-    public void createSkill(SkillDto skillDto) {
+    public SkillResponse createSkill(SkillDto skillDto) throws IOException {
 
-        Skill skill = setSkill(skillDto);
-        skillRepository.save(skill);
+
+
+        Skill skill = skillRepository.save(skillMapper.skillDtoToSkill(skillDto));
+
+        String fileName = generateUniqueFileName(Objects.requireNonNull(skillDto.getImage().getOriginalFilename()));
+        String presignedUrl = storageService.generatePresignedUrl(fileName);
+        storageService.uploadFileToS3(skillDto.getImage(), presignedUrl);
+
+        skill.setImage(storageService.getFileUrl(fileName).toString());
+
+
+        return skillMapper.skillToSkillResponse(skill);
 
     }
 
-    @Override
-    public void updateSkill(Long id, SkillDto skillDto) {
 
-        if(!skillRepository.findById(id).isPresent()){
-            throw new SkillNotFoundException();
+    @Override
+    public SkillResponse updateSkill(Long id, SkillDto skillDto) throws IOException {
+
+        if(skillRepository.findById(id).isEmpty()){
+            throw new ResourceNotFoundException("skill not found with this id :" + id);
         }
 
-        Skill skill = setSkill(skillDto);
-        skill.setId(id);
+        Skill skill = findSkillById(id);
 
-        skillRepository.save(skill);
 
+        String fileName = generateUniqueFileName(Objects.requireNonNull(skillDto.getImage().getOriginalFilename()));
+        String presignedUrl = storageService.generatePresignedUrl(fileName);
+        storageService.uploadFileToS3(skillDto.getImage(), presignedUrl);
+
+        skill.setImage(storageService.getFileUrl(fileName).toString());
+        skill.setSkillLevel(skillDto.getSkillLevel());
+        skill.setName(skillDto.getName());
+        skill.setSkillDescription(skillDto.getSkillDescription());
+
+        Skill skill1 = skillRepository.save(skill);
+        return skillMapper.skillToSkillResponse(skill1);
     }
 
     @Override
     public void approveSkill(Long courseID) {
 
         Course course = courseRepository.findById(courseID).orElseThrow(
-                CourseNotFoundException::new
+                () -> new ResourceNotFoundException("course not found with this id :" + courseID)
         );
 
         course.setCourseStatusEnum(CourseStatus.APPROVED);
@@ -68,7 +105,7 @@ public class SkillServiceImpl implements SkillService {
     @Override
     public void refuseSkill(Long courseID) {
         Course course = courseRepository.findById(courseID).orElseThrow(
-                CourseNotFoundException::new
+                () -> new ResourceNotFoundException("course not found with this id :" + courseID)
         );
 
         course.setSkill(null);
@@ -81,69 +118,46 @@ public class SkillServiceImpl implements SkillService {
     @Override
     public SkillResponse getSkillById(Long id) {
         Skill skill = skillRepository.findById(id).orElseThrow(
-                SkillNotFoundException::new
+                () -> new ResourceNotFoundException("skill not found with this id :" + id)
         );
 
-        return setSkillResponse(skill);
+        return skillMapper.skillToSkillResponse(skill);
     }
 
     @Override
     public List<SkillResponse> getAllSkills() {
 
-        List<SkillResponse> skillResponses = new ArrayList<>();
-
         List<Skill> skills = skillRepository.findAll();
-
-        for (Skill skill:skills){
-            skillResponses.add(setSkillResponse(skill));
-        }
-
-
-        return skillResponses;
+        return skillMapper.skillListToSkillResponseList(skills);
     }
 
     @Override
     public List<SkillsNameResponse> getAllSkillsNames() {
+        return skillMapper.SkillListToSkillNameResponseList(skillRepository.findAll());
+    }
 
-        List<SkillsNameResponse> skillsNameResponses = new ArrayList<>();
+    @Override
+    public List<SkillResponse> getStudentSkills(String email) {
 
-        List<Skill> skills = skillRepository.findAll();
+        List<Skill> skills = skillRepository.findByStudentsEmail(email);
 
-        SkillsNameResponse skillsNameResponse = new SkillsNameResponse();
+        return skillMapper.skillListToSkillResponseList(skills);
+    }
 
-        for (Skill skill:skills){
+    Skill findSkillById(Long id){
+        return this.skillRepository.findById(id).orElseThrow(
+                () ->new ResourceNotFoundException("skill not found with the id:" +id)
+        );
+    }
 
-            skillsNameResponse.setId(skill.getId());
-            skillsNameResponse.setTitle(skill.getImage());
-            skillsNameResponses.add(skillsNameResponse);
-
+    private String generateUniqueFileName(String originalFileName) {
+        String extension = "";
+        int i = originalFileName.lastIndexOf('.');
+        if (i > 0) {
+            extension = originalFileName.substring(i);
         }
-
-        return skillsNameResponses;
+        return UUID.randomUUID().toString() + extension;
     }
 
-    public Skill setSkill(SkillDto skillDto){
-        Skill skill = new Skill();
-        skill.setSkillLevelEnum(skillDto.getSkillLevelEnum());
-        skill.setSkillDescription(skillDto.getSkillDescription());
-        skill.setName(skillDto.getName());
-        skill.setImage(skillDto.getImage());
-
-        return skill;
-    }
-
-    public SkillResponse setSkillResponse(Skill skill){
-
-        SkillResponse skillResponse = new SkillResponse();
-
-        skillResponse.setId(skill.getId());
-        skillResponse.setSkillDescription(skill.getSkillDescription());
-        skillResponse.setSkillLevelEnum(skill.getSkillLevelEnum());
-        skillResponse.setName(skillResponse.getName());
-        skillResponse.setImage(skillResponse.getImage());
-
-        return skillResponse;
-
-    }
 
 }

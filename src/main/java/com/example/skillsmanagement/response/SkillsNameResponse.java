@@ -8,5 +8,5 @@ public class SkillsNameResponse {
 
     private Long id;
 
-    private String  title;
+    private String  name;
 }

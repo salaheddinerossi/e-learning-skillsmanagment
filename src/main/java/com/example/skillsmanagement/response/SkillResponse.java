@@ -14,6 +14,6 @@ public class SkillResponse {
 
     private String skillDescription;
 
-    private Enum<SkillLevel> skillLevelEnum;
+    private SkillLevel skillLevel;
 
 }

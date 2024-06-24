@@ -4,13 +4,14 @@ import com.example.skillsmanagement.dto.SkillDto;
 import com.example.skillsmanagement.response.SkillResponse;
 import com.example.skillsmanagement.response.SkillsNameResponse;
 
+import java.io.IOException;
 import java.util.List;
 
 public interface SkillService {
 
-    void createSkill(SkillDto skillDto);
+    SkillResponse createSkill(SkillDto skillDto) throws IOException;
 
-    void updateSkill(Long id,SkillDto skillDto);
+    SkillResponse updateSkill(Long id,SkillDto skillDto) throws IOException;
 
     void approveSkill(Long courseID);
 
@@ -22,6 +23,5 @@ public interface SkillService {
 
     List<SkillsNameResponse> getAllSkillsNames();
 
-    //assign skill to a student
-
+    List<SkillResponse> getStudentSkills(String email);
 }

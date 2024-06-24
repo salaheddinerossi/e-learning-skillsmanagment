@@ -2,45 +2,117 @@ package com.example.skillsmanagement.controller;
 
 
 import com.example.skillsmanagement.dto.SkillDto;
+import com.example.skillsmanagement.dto.UserDetailsDto;
+import com.example.skillsmanagement.exception.UnauthorizedException;
+import com.example.skillsmanagement.response.SkillResponse;
+import com.example.skillsmanagement.response.SkillsNameResponse;
+import com.example.skillsmanagement.service.AuthService;
 import com.example.skillsmanagement.service.SkillService;
+import com.example.skillsmanagement.util.ApiResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.io.IOException;
+import java.util.List;
 
 @RestController
 public class SkillController {
 
+    @Value("${auth.url}")
+    private String authUrl;
+
     final
     SkillService skillService;
 
-    public SkillController(SkillService skillService) {
+    final
+    AuthService authService;
+    public SkillController(SkillService skillService, AuthService authService) {
         this.skillService = skillService;
+        this.authService = authService;
     }
 
     @PostMapping("/")
-    public ResponseEntity<?> createSkill(@RequestBody SkillDto skillDto){
-        skillService.createSkill(skillDto);
-        return ResponseEntity.ok("the skill has been added");
+    public ResponseEntity<ApiResponse<SkillResponse>> createSkill(@ModelAttribute SkillDto skillDto,@RequestHeader("Authorization") String token) throws IOException {
+
+        UserDetailsDto userDetailsDto = authService.getUserDetailsFromAuthService(authUrl,token);
+        if (!authService.isAdmin(userDetailsDto.getRole())){
+            throw new UnauthorizedException("only admin can perform this action");
+        }
+
+        SkillResponse skillResponse = skillService.createSkill(skillDto);
+        return ResponseEntity.ok(new ApiResponse<>(true,"skill has been added" , skillResponse));
     }
 
-    @PostMapping("/{id}")
-    public ResponseEntity<?> updateSkill(@RequestBody SkillDto skillDto, @PathVariable Long id){
-        skillService.updateSkill(id,skillDto);
-        return ResponseEntity.ok("the skill has been updated");
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<SkillResponse>> updateSkill(@ModelAttribute SkillDto skillDto, @PathVariable Long id,@RequestHeader("Authorization") String token) throws IOException {
+
+        UserDetailsDto userDetailsDto = authService.getUserDetailsFromAuthService(authUrl,token);
+        if (!authService.isAdmin(userDetailsDto.getRole())){
+            throw new UnauthorizedException("only admin can perform this action");
+        }
+
+
+        SkillResponse skillResponse= skillService.updateSkill(id,skillDto);
+        return ResponseEntity.ok(new ApiResponse<>(true,"skill has been updated",skillResponse));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getSkill(@PathVariable Long id){
-        return ResponseEntity.ok(skillService.getSkillById(id));
+    public ResponseEntity<ApiResponse<SkillResponse>> getSkill(@PathVariable Long id,@RequestHeader("Authorization") String token){
+
+        UserDetailsDto userDetailsDto = authService.getUserDetailsFromAuthService(authUrl,token);
+        if (!authService.isAdmin(userDetailsDto.getRole())){
+            throw new UnauthorizedException("only admin can perform this action");
+        }
+        return ResponseEntity.ok(new ApiResponse<>(true,"skill has been fetcehd",skillService.getSkillById(id)));
     }
 
     @GetMapping("/")
-    public ResponseEntity<?> getSkills(){
-        return ResponseEntity.ok(skillService.getAllSkills());
+    public ResponseEntity<ApiResponse<List<SkillResponse>>> getSkills(){
+
+
+        return ResponseEntity.ok(new ApiResponse<>(true,"skills have been fetched" , skillService.getAllSkills()));
     }
 
     @GetMapping("/names")
-    public ResponseEntity<?> getSkillsNames(){
-        return ResponseEntity.ok(skillService.getAllSkillsNames());
+    public ResponseEntity<ApiResponse<List<SkillsNameResponse>>> getSkillsNames(){
+        return ResponseEntity.ok(new ApiResponse<>(true,"skills have been fetched",skillService.getAllSkillsNames()));
+    }
+
+    @GetMapping("/studentSkills")
+    public ResponseEntity<ApiResponse<List<SkillResponse>>> getStudentSkills(@RequestHeader("Authorization") String token){
+        UserDetailsDto userDetailsDto = authService.getUserDetailsFromAuthService(authUrl,token);
+
+        if (!authService.isStudent(userDetailsDto.getRole())){
+            throw new UnauthorizedException("you are not allowed to perform this action");
+        }
+
+        return ResponseEntity.ok(new ApiResponse<>(true,"skills have been fetched" , skillService.getStudentSkills(userDetailsDto.getEmail())));
+    }
+
+    @PutMapping("/approve/{courseId}")
+    public ResponseEntity<ApiResponse<?>> approveSkill(@PathVariable Long courseId,@RequestHeader("Authorization") String token){
+
+        UserDetailsDto userDetailsDto = authService.getUserDetailsFromAuthService(authUrl,token);
+        if (!authService.isAdmin(userDetailsDto.getRole())){
+            throw new UnauthorizedException("only admin can perform this action");
+        }
+
+        skillService.approveSkill(courseId);
+        return ResponseEntity.ok(new ApiResponse<>(true,"skill has been approved",null));
+
+    }
+
+    @PutMapping("/refuse/{courseId}")
+    public ResponseEntity<ApiResponse<?>> refuseSkill(@PathVariable Long courseId,@RequestHeader("Authorization") String token){
+
+        UserDetailsDto userDetailsDto = authService.getUserDetailsFromAuthService(authUrl,token);
+        if (!authService.isAdmin(userDetailsDto.getRole())){
+            throw new UnauthorizedException("only admin can perform this action");
+        }
+
+        skillService.refuseSkill(courseId);
+        return ResponseEntity.ok(new ApiResponse<>(true,"skill has been refused",null));
     }
 
 }
